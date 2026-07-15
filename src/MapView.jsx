@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { fetchRoute } from './routing'
+import { HOME_BASE, SIGHTSEEING_ROUTES } from './presets'
+import PreferencesQuiz from './PreferencesQuiz'
 
 // Eau Claire, WI
 const EAU_CLAIRE_CENTER = [-91.4985, 44.8113]
@@ -35,13 +37,21 @@ const EMPTY_FEATURE_COLLECTION = { type: 'FeatureCollection', features: [] }
 function MapView() {
   const mapContainerRef = useRef(null)
   const mapRef = useRef(null)
-  const startMarkerRef = useRef(null)
-  const endMarkerRef = useRef(null)
+  const homeMarkerRef = useRef(null)
+  const stopMarkersRef = useRef([])
 
-  const [points, setPoints] = useState([])
+  // Sightseeing stops between HOME_BASE out and HOME_BASE back; every route
+  // is a loop that starts and ends at the e-bike rental pickup point.
+  const [waypoints, setWaypoints] = useState([])
+  // Some presets (e.g. the bridges loop) need routing forced through exact
+  // bridge-end coordinates rather than the displayed stop markers, so BRouter
+  // is told to fully traverse each bridge instead of merely passing near it.
+  // Null means "derive route points from waypoints", the common case.
+  const [routeOverride, setRouteOverride] = useState(null)
   const [routeStats, setRouteStats] = useState(null)
   const [routeError, setRouteError] = useState(null)
   const [routeLoading, setRouteLoading] = useState(false)
+  const [showQuiz, setShowQuiz] = useState(true)
 
   useEffect(() => {
     // Guards against React StrictMode's dev-only double-invoke of this effect:
@@ -153,11 +163,17 @@ function MapView() {
           'line-width': 4,
         },
       })
+
+      homeMarkerRef.current = new maplibregl.Marker({ color: '#111827' })
+        .setLngLat(HOME_BASE.coords)
+        .setPopup(new maplibregl.Popup({ offset: 24 }).setText(`${HOME_BASE.name} (start/end, e-bike rentals)`))
+        .addTo(map)
     })
 
     map.on('click', (e) => {
       const { lng, lat } = e.lngLat
-      setPoints((prev) => (prev.length >= 2 ? [[lng, lat]] : [...prev, [lng, lat]]))
+      setWaypoints((prev) => [...prev, { name: null, coords: [lng, lat] }])
+      setRouteOverride(null)
     })
   }, [])
 
@@ -165,18 +181,18 @@ function MapView() {
     const map = mapRef.current
     if (!map) return
 
-    startMarkerRef.current?.remove()
-    endMarkerRef.current?.remove()
-    startMarkerRef.current = points[0]
-      ? new maplibregl.Marker({ color: '#16a34a' }).setLngLat(points[0]).addTo(map)
-      : null
-    endMarkerRef.current = points[1]
-      ? new maplibregl.Marker({ color: '#dc2626' }).setLngLat(points[1]).addTo(map)
-      : null
+    stopMarkersRef.current.forEach((marker) => marker.remove())
+    stopMarkersRef.current = waypoints.map((stop) => {
+      const marker = new maplibregl.Marker({ color: '#7c3aed' }).setLngLat(stop.coords)
+      if (stop.name) {
+        marker.setPopup(new maplibregl.Popup({ offset: 24 }).setText(stop.name))
+      }
+      return marker.addTo(map)
+    })
 
     const routeSource = map.getSource(ROUTE_SOURCE_ID)
 
-    if (points.length < 2) {
+    if (waypoints.length === 0) {
       routeSource?.setData(EMPTY_FEATURE_COLLECTION)
       setRouteStats(null)
       setRouteError(null)
@@ -187,7 +203,10 @@ function MapView() {
     setRouteLoading(true)
     setRouteError(null)
 
-    fetchRoute(points[0], points[1])
+    const middlePoints = routeOverride ?? waypoints.map((stop) => stop.coords)
+    const routePoints = [HOME_BASE.coords, ...middlePoints, HOME_BASE.coords]
+
+    fetchRoute(routePoints)
       .then(({ geojson, distanceMeters, durationSeconds }) => {
         if (cancelled) return
         routeSource?.setData(geojson)
@@ -205,24 +224,42 @@ function MapView() {
     return () => {
       cancelled = true
     }
-  }, [points])
+  }, [waypoints, routeOverride])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }} />
       <RouteInfo
-        points={points}
+        waypoints={waypoints}
         loading={routeLoading}
         error={routeError}
         stats={routeStats}
-        onClear={() => setPoints([])}
+        onClear={() => {
+          setWaypoints([])
+          setRouteOverride(null)
+        }}
+        onSelectPreset={(route) => {
+          setWaypoints(route.stops)
+          setRouteOverride(route.routePoints ?? null)
+        }}
+        onRetakeQuiz={() => setShowQuiz(true)}
       />
       <Legend />
+      {showQuiz && (
+        <PreferencesQuiz
+          onComplete={(route) => {
+            setWaypoints(route.stops)
+            setRouteOverride(route.routePoints ?? null)
+            setShowQuiz(false)
+          }}
+          onSkip={() => setShowQuiz(false)}
+        />
+      )}
     </div>
   )
 }
 
-function RouteInfo({ points, loading, error, stats, onClear }) {
+function RouteInfo({ waypoints, loading, error, stats, onClear, onSelectPreset, onRetakeQuiz }) {
   return (
     <div
       style={{
@@ -235,23 +272,43 @@ function RouteInfo({ points, loading, error, stats, onClear }) {
         boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
         fontSize: 13,
         color: '#222',
-        maxWidth: 260,
+        maxWidth: 280,
       }}
     >
-      {points.length === 0 && <div>Click the map to set a start point, then click again for your destination.</div>}
-      {points.length === 1 && <div>Click the map again to set your destination.</div>}
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>Rides from {HOME_BASE.name}</div>
+
+      {waypoints.length === 0 && (
+        <div>Pick a sightseeing route below, or click the map to add your own stops.</div>
+      )}
       {loading && <div>Calculating route…</div>}
       {error && <div style={{ color: '#b91c1c' }}>Couldn't find a route: {error}</div>}
       {stats && !loading && !error && (
         <div>
-          {(stats.distanceMeters / 1609.34).toFixed(1)} mi &middot; {Math.round(stats.durationSeconds / 60)} min
+          {(stats.distanceMeters / 1609.34).toFixed(1)} mi &middot; {Math.round(stats.durationSeconds / 60)} min loop
         </div>
       )}
-      {points.length > 0 && (
-        <button onClick={onClear} style={{ marginTop: 6 }}>
+      {waypoints.length > 0 && (
+        <button onClick={onClear} style={{ marginTop: 6, marginBottom: 8 }}>
           Clear route
         </button>
       )}
+
+      <div style={{ borderTop: '1px solid #ddd', marginTop: 4, paddingTop: 6 }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Sightseeing routes</div>
+        {SIGHTSEEING_ROUTES.map((route) => (
+          <button
+            key={route.name}
+            onClick={() => onSelectPreset(route)}
+            title={route.description}
+            style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 4 }}
+          >
+            {route.name}
+          </button>
+        ))}
+        <button onClick={onRetakeQuiz} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 4 }}>
+          Retake preferences quiz
+        </button>
+      </div>
     </div>
   )
 }

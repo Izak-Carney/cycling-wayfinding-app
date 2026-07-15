@@ -5,9 +5,12 @@ const BROUTER_URL = 'https://brouter.de/brouter'
 // GraphHopper/Mapbox/ORS.
 const PROFILE = 'trekking'
 
-export async function fetchRoute(start, end) {
+// points: array of [lng, lat], routed through in order (BRouter takes
+// multiple lonlats in one request, so a full loop like home -> stop ->
+// stop -> home is a single call).
+export async function fetchRoute(points) {
   const url = new URL(BROUTER_URL)
-  url.searchParams.set('lonlats', `${start[0]},${start[1]}|${end[0]},${end[1]}`)
+  url.searchParams.set('lonlats', points.map(([lng, lat]) => `${lng},${lat}`).join('|'))
   url.searchParams.set('profile', PROFILE)
   url.searchParams.set('alternativeidx', '0')
   url.searchParams.set('format', 'geojson')
