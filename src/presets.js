@@ -80,67 +80,86 @@ export const SIGHTSEEING_ROUTES = [
     // consecutive waypoint pair, so BRouter is forced across the full span
     // rather than merely routed near a point on it.
     //
-    // Modeling the two riverbanks plus the downtown peninsula as 3 regions:
-    // 7 bridges cross the Chippewa (peninsula <-> west bank) and 4 cross the
-    // Eau Claire (peninsula <-> north bank). That's exactly 2 odd-degree
-    // regions (7 and 11 are odd; the west bank alone is also odd at 7), so -
-    // unlike Konigsberg's impossible 4-odd-vertex layout - an Eulerian path
-    // crossing every bridge exactly once is graph-theoretically possible
-    // here. In practice BRouter still needs a rideable street connecting one
-    // bridge's far end to the next one's, and checking the actual routed
-    // geometry (which side of the river each point falls on, verified
-    // against real river centerlines rather than assumed) found Dewey Street
-    // Bridge's north end has no such connection to its neighbors - every
-    // pairing tried made BRouter duck back across some bridge immediately
-    // after Dewey rather than continuing along the bank. Every other
-    // adjacent pair (Barstow<->Farwell, and every Chippewa-side pair) does
-    // connect cleanly with no backtracking. `routePoints` orders bridges to
-    // isolate that one unavoidable exception and walks each bridge's own two
-    // end nodes as a consecutive waypoint pair, so BRouter is forced across
-    // the full span rather than merely routed near a point on it. High
-    // Bridge is deliberately recrossed a second time, the minimum needed to
-    // close the path back into a loop ending at Volume One.
+    // Two rivers, three land regions: the Chippewa runs north-south on the
+    // west, the Eau Claire comes in from the east and joins it. That leaves
+    // the WEST BANK, the NORTH side (home at 205 N Dewey St, plus Phoenix
+    // Park and Riverfront Terrace), and DOWNTOWN/south (Haymarket, Pablo
+    // Center, Barstow St). Seven bridges cross the Chippewa (west bank <->
+    // east): UW-Eau Claire Footbridge, Water Street, Lake Street, the Grand
+    // Avenue Footbridge, the Phoenix Park bridge, Madison Street, and High
+    // Bridge. Four cross the Eau Claire (downtown/south <-> north): the
+    // Confluence/Haymarket bridge, Barstow, Farwell, and Dewey.
+    //
+    // Two important bridge IDs were verified against OSM after being
+    // mislabeled earlier: the Chippewa crossing at 44.813 (right by Phoenix
+    // Park) is the *Phoenix Park* bridge, and the separate Chippewa crossing
+    // at 44.810 (by Owen Park / Main St) is the *Grand Avenue Footbridge*.
+    // An earlier version had these two names swapped, which is why the
+    // confluence area kept backtracking - the fix below was being applied to
+    // the wrong bridge.
+    //
+    // The order that keeps every crossing to a single clean pass (verified
+    // leg-by-leg against real routed geometry): Dewey out of home first;
+    // Lake crossed early so the long southbound leg doesn't clip it; down the
+    // west bank to cross the Water Street bridge heading EAST onto the campus
+    // side, then the local-rider connector that BRouter won't find on its own
+    // - right on Park Avenue, then right (west) on Garfield and across campus
+    // to the foot of the UW-Eau Claire Footbridge, which is then crossed back
+    // to the west bank. (Those two Chippewa bridges used to dead-end into a
+    // there-and-back; BRouter's trekking profile prefers the shorter path
+    // that stops at the footbridge rather than looping through campus, so the
+    // one Park Avenue waypoint is needed to pin it to the route a rider
+    // actually takes - the ways themselves are all connected and bike-legal.)
+    // Then up the west
+    // bank over the Phoenix Park bridge and Madison to High (recrossed once,
+    // the minimum to fix the odd-vertex parity and turn back south); then the
+    // other local-knowledge move - cross the Grand Avenue Footbridge heading
+    // EAST, follow the riverside trail north past Haymarket Plaza, and cross
+    // the Confluence/Haymarket bridge from the SOUTH - then Barstow and
+    // Farwell back to home. Every bridge is crossed exactly once except High.
     name: 'Bridges of Eau Claire Loop',
     description:
-      "An homage to the Seven Bridges of Konigsberg: every real Chippewa and Eau Claire River crossing downtown, each fully traversed, with only High Bridge recrossed to close the loop.",
+      "An homage to the Seven Bridges of Konigsberg: every real Chippewa and Eau Claire River crossing downtown, each crossed exactly once, with only High Bridge deliberately recrossed to close the loop.",
     stops: [
-      { name: 'Confluence Trail Bridge', coords: [-91.502324, 44.812731] },
       { name: 'Dewey Street Bridge', coords: [-91.498732, 44.813838] },
-      { name: 'Barstow Street Bridge', coords: [-91.501085, 44.813221] },
-      { name: 'Farwell Street Bridge', coords: [-91.499816, 44.813593] },
-      { name: 'UW-Eau Claire Footbridge', coords: [-91.500735, 44.800154] },
-      { name: 'Summit Avenue / Water Street Bridge', coords: [-91.499092, 44.801628] },
       { name: 'Lake Street Bridge', coords: [-91.499133, 44.807865] },
-      { name: 'Phoenix Park Trail Bridge', coords: [-91.501825, 44.809927] },
-      { name: 'Grand Avenue Trail Bridge', coords: [-91.505446, 44.813074] },
+      { name: 'Water Street Bridge', coords: [-91.499092, 44.801628] },
+      { name: 'UW-Eau Claire Footbridge', coords: [-91.500735, 44.800154] },
+      { name: 'Phoenix Park Trail Bridge', coords: [-91.505446, 44.813074] },
       { name: 'Madison Street Bridge', coords: [-91.506941, 44.815783] },
       { name: 'High Bridge', coords: [-91.509369, 44.824689] },
+      { name: 'Grand Avenue Footbridge', coords: [-91.501825, 44.809927] },
+      { name: 'Haymarket Plaza', coords: [-91.5020704, 44.8116874] },
+      { name: 'Confluence Trail Bridge', coords: [-91.502324, 44.812731] },
+      { name: 'Barstow Street Bridge', coords: [-91.501085, 44.813221] },
+      { name: 'Farwell Street Bridge', coords: [-91.499816, 44.813593] },
     ],
     routePoints: [
-      [-91.5025259, 44.8129805],
-      [-91.5021226, 44.8124811],
-      [-91.4985961, 44.8135624],
-      [-91.4988686, 44.8141129],
-      [-91.5011372, 44.8134594],
-      [-91.5010337, 44.8129817],
-      [-91.499739, 44.8132955],
-      [-91.4998927, 44.8138897],
-      [-91.500324, 44.7994366],
-      [-91.5011452, 44.8008713],
-      [-91.5004492, 44.8018619],
-      [-91.497734, 44.8013943],
-      [-91.498624, 44.8080725],
-      [-91.4996427, 44.8076572],
-      [-91.5028586, 44.8096088],
-      [-91.5007918, 44.8102455],
-      [-91.5044767, 44.8132966],
-      [-91.5064154, 44.8128518],
-      [-91.508225, 44.815632],
-      [-91.5056575, 44.8159331],
-      [-91.5076421, 44.8248835],
-      [-91.5110955, 44.8244943],
-      [-91.5110955, 44.8244943],
-      [-91.5076421, 44.8248835],
+      [-91.4988686, 44.8141129], // Dewey N -> home side
+      [-91.4985961, 44.8135624], // Dewey S -> downtown
+      [-91.498624, 44.8080725], // Lake E (crossed early to avoid clipping it later)
+      [-91.4996427, 44.8076572], // Lake W -> west bank
+      [-91.5004492, 44.8018619], // Water St W
+      [-91.497734, 44.8013943], // Water St E (crossed EAST onto the campus side)
+      [-91.49642, 44.80114], // right onto Park Ave (Park Ave / Summit jct)
+      [-91.500324, 44.7994366], // right onto Garfield, west across campus to the UWEC footbridge foot
+      [-91.5011452, 44.8008713], // cross the UWEC Footbridge back to the west bank
+      [-91.5064154, 44.8128518], // Phoenix Park bridge W
+      [-91.5044767, 44.8132966], // Phoenix Park bridge E -> north side
+      [-91.5056575, 44.8159331], // Madison E
+      [-91.508225, 44.815632], // Madison W
+      [-91.5110955, 44.8244943], // High W
+      [-91.5076421, 44.8248835], // High E
+      [-91.5076421, 44.8248835], // High E (recross to turn back south)
+      [-91.5110955, 44.8244943], // High W
+      [-91.5028586, 44.8096088], // Grand Avenue Footbridge W
+      [-91.5007918, 44.8102455], // Grand Avenue Footbridge E (crossed EAST)
+      [-91.5021226, 44.8124811], // Confluence S (trail north past Haymarket, cross from south)
+      [-91.5025259, 44.8129805], // Confluence N
+      [-91.5011372, 44.8134594], // Barstow N
+      [-91.5010337, 44.8129817], // Barstow S
+      [-91.499739, 44.8132955], // Farwell S
+      [-91.4998927, 44.8138897], // Farwell N -> home
     ],
     lengthCategory: 'long',
     hilliness: 'flat',
