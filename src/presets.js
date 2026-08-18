@@ -22,7 +22,7 @@ export const SIGHTSEEING_ROUTES = [
     name: 'Downtown & Confluence Loop',
     description: 'A short loop past Phoenix Park, North River Fronts Park, and Haymarket Plaza at the confluence.',
     stops: [
-      { name: 'Phoenix Park', coords: [-91.502892, 44.8139364] },
+      { name: 'Phoenix Park', coords: [-91.50337, 44.813124] },
       { name: 'North River Fronts Park', coords: [-91.5051767, 44.8215117] },
       { name: 'Haymarket Plaza', coords: [-91.5020704, 44.8116874] },
     ],
@@ -37,7 +37,7 @@ export const SIGHTSEEING_ROUTES = [
     stops: [
       { name: 'Halfmoon Beach', coords: [-91.5148664, 44.8139455] },
       { name: 'Carson Park', coords: [-91.5226359, 44.807394] },
-      { name: 'Owen Park', coords: [-91.5021981, 44.803707] },
+      { name: 'Owen Park', coords: [-91.500576, 44.807087] },
     ],
     lengthCategory: 'medium',
     hilliness: 'flat',
@@ -45,11 +45,35 @@ export const SIGHTSEEING_ROUTES = [
     trafficComfort: 'mixed',
   },
   {
-    name: 'Nature & Overlooks Loop',
-    description: 'Riverside Owen Park and the wooded trails of Putnam Park State Natural Area.',
+    // The Putnam Trail runs in two very different halves split by the UWEC
+    // campus. WEST of campus (in Putnam Park State Natural Area) it is
+    // surface=dirt/gravel, sac_scale=hiking - a rugged foot/mountain-bike path.
+    // EAST of campus it is surface=gravel, bicycle=designated - a genuine
+    // rideable trail. This loop deliberately rides only the eastern half.
+    //
+    // routePoints force the intended loop: out through campus to the eastern
+    // section's WEST terminus at Lower Campus (-91.502652,44.796778), the full
+    // LENGTH of the eastern trail through its south bend to the EAST terminus
+    // on Putnam Drive in the Third Ward (-91.483052,44.802245), then back
+    // through the Third Ward to Lower Campus, across the UW-Eau Claire
+    // Footbridge, and up the west-bank Chippewa River State Trail past Owen
+    // Park and Phoenix Park before crossing to Volume One. Verified against real
+    // BRouter trekking geometry - every waypoint snaps onto its intended way.
+    name: 'Putnam Trail Loop',
+    description:
+      'Through UW-Eau Claire campus to the rideable eastern Putnam Trail, out its full length to the Third Ward, then back up the Chippewa River State Trail. Skips the rugged hiking half of the trail west of campus.',
     stops: [
-      { name: 'Owen Park', coords: [-91.5021981, 44.803707] },
-      { name: 'Putnam Park State Natural Area', coords: [-91.5135595, 44.797802] },
+      { name: 'Putnam Trail — west trailhead (Lower Campus)', coords: [-91.502652, 44.796778] },
+      { name: 'Putnam Trail — east end (Third Ward)', coords: [-91.483052, 44.802245] },
+    ],
+    routePoints: [
+      [-91.502652, 44.796778], // through campus to the eastern section's west terminus
+      [-91.495145, 44.794494], // south bend - forces the full length of the trail
+      [-91.483052, 44.802245], // east terminus, on Putnam Drive in the Third Ward
+      [-91.494477, 44.802406], // back through the Third Ward toward campus
+      [-91.500735, 44.800154], // back to Lower Campus, cross the UW-Eau Claire Footbridge
+      [-91.500576, 44.807087], // up the west-bank Chippewa River State Trail past Owen Park
+      [-91.50337, 44.813124], // through Phoenix Park, then across to Volume One
     ],
     lengthCategory: 'medium',
     hilliness: 'rolling',
@@ -60,7 +84,7 @@ export const SIGHTSEEING_ROUTES = [
     name: 'East Side & Mount Tom Loop',
     description: "The hilliest option: Boyd Park, the overlook at Mount Tom Park, and North River Fronts Park.",
     stops: [
-      { name: 'Boyd Park', coords: [-91.4829567, 44.8135006] },
+      { name: 'Boyd Park', coords: [-91.484803, 44.813475] },
       { name: 'Mount Tom Park', coords: [-91.4818872, 44.8189405] },
       { name: 'North River Fronts Park', coords: [-91.5051767, 44.8215117] },
     ],
@@ -181,15 +205,33 @@ export const SIGHTSEEING_ROUTES = [
     trafficComfort: 'mixed',
   },
   {
+    // The Grand Tour rides the full eastern Putnam Trail (see 'Putnam Trail
+    // Loop' for why the eastern, bicycle=designated half is used rather than
+    // the rugged sac_scale=hiking half west of campus). The western parks come
+    // first, then the tour drops to Lower Campus and rides the whole eastern
+    // trail - west terminus, south bend, east terminus on Putnam Drive in the
+    // Third Ward - before the short hop home. routePoints force the full
+    // traversal; verified against real BRouter trekking geometry.
     name: 'Grand Tour',
-    description: 'The full sightseeing circuit: Cameron Park, Halfmoon Beach, Carson Park, Putnam Park, Owen Park, and Randall Park.',
+    description:
+      'The full sightseeing circuit: Cameron Park, Halfmoon Beach, Carson Park, Owen Park, Randall Park, and the length of the eastern Putnam Trail out to the Third Ward.',
     stops: [
       { name: 'Cameron Park', coords: [-91.5230236, 44.8154409] },
       { name: 'Halfmoon Beach', coords: [-91.5148664, 44.8139455] },
       { name: 'Carson Park', coords: [-91.5226359, 44.807394] },
-      { name: 'Putnam Park State Natural Area', coords: [-91.5135595, 44.797802] },
-      { name: 'Owen Park', coords: [-91.5021981, 44.803707] },
+      { name: 'Owen Park', coords: [-91.500576, 44.807087] },
       { name: 'Randall Park', coords: [-91.5066906, 44.8045763] },
+      { name: 'Putnam Trail — east end (Third Ward)', coords: [-91.483052, 44.802245] },
+    ],
+    routePoints: [
+      [-91.5230236, 44.8154409], // Cameron Park
+      [-91.5148664, 44.8139455], // Halfmoon Beach
+      [-91.5226359, 44.807394], // Carson Park
+      [-91.500576, 44.807087], // Owen Park
+      [-91.5066906, 44.8045763], // Randall Park
+      [-91.502652, 44.796778], // Putnam Trail eastern section - west terminus (Lower Campus)
+      [-91.495145, 44.794494], // south bend - forces the full length of the trail
+      [-91.483052, 44.802245], // east terminus, on Putnam Drive in the Third Ward
     ],
     lengthCategory: 'long',
     hilliness: 'rolling',
