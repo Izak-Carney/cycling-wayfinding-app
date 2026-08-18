@@ -30,7 +30,7 @@ const OSM_RASTER_STYLE = {
 }
 
 const TRAILS_SOURCE_ID = 'trails'
-const TRAILS_DATA_URL = '/data/trails.geojson'
+const TRAILS_DATA_URL = `${import.meta.env.BASE_URL}data/trails.geojson`
 
 const NOGO_SOURCE_ID = 'nogo-zones'
 
