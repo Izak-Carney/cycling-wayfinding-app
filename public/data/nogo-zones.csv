@@ -1,0 +1,6 @@
+# No-go zones: circles riders are never routed through.
+# Each row is one zone: latitude, longitude, radius in metres.
+# A zone is ignored for a given ride if one of that ride's own stops falls
+# inside it, so a destination inside a zone stays reachable.
+latitude,longitude,radius_m
+44.818499,-91.45969,45

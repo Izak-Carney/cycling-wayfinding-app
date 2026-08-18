@@ -1,17 +1,36 @@
+import { zonesApplicableTo } from './nogoZones'
+
 const BROUTER_URL = 'https://brouter.de/brouter'
 
-// 'trekking' is BRouter's general-purpose cycle-touring profile: it prefers
-// dedicated trails/lanes over busy roads without needing an API key, unlike
-// GraphHopper/Mapbox/ORS.
-const PROFILE = 'trekking'
+// 'mtb' is BRouter's mountain-biking profile. Unlike 'trekking' it will route
+// over paths OSM tags as foot/pedestrian trails (highway=path/footway without
+// bicycle=designated), which is what lets these rides use Eau Claire's park
+// and riverside trail network instead of detouring onto streets. Like
+// trekking, it needs no API key, unlike GraphHopper/Mapbox/ORS.
+export const DEFAULT_PROFILE = 'mtb'
 
 // points: array of [lng, lat], routed through in order (BRouter takes
 // multiple lonlats in one request, so a full loop like home -> stop ->
 // stop -> home is a single call).
-export async function fetchRoute(points) {
+// profile: a preset can pin itself to a different BRouter profile when its
+// geometry was hand-tuned against that profile (see the bridges loop).
+// nogoZones: circular areas to route around (busy intersections and the
+// like). Zones containing one of `points` are dropped, so a stop inside a
+// zone stays reachable instead of failing the whole route.
+export async function fetchRoute(points, profile = DEFAULT_PROFILE, nogoZones = []) {
   const url = new URL(BROUTER_URL)
   url.searchParams.set('lonlats', points.map(([lng, lat]) => `${lng},${lat}`).join('|'))
-  url.searchParams.set('profile', PROFILE)
+  url.searchParams.set('profile', profile)
+
+  // BRouter wants nogos as lon,lat,radius triples - longitude first, matching
+  // its lonlats param and the opposite of the CSV's column order.
+  const activeZones = zonesApplicableTo(nogoZones, points)
+  if (activeZones.length > 0) {
+    url.searchParams.set(
+      'nogos',
+      activeZones.map((zone) => `${zone.lng},${zone.lat},${zone.radiusMeters}`).join('|'),
+    )
+  }
   url.searchParams.set('alternativeidx', '0')
   url.searchParams.set('format', 'geojson')
 

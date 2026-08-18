@@ -58,7 +58,9 @@ export const SIGHTSEEING_ROUTES = [
     // through the Third Ward to Lower Campus, across the UW-Eau Claire
     // Footbridge, and up the west-bank Chippewa River State Trail past Owen
     // Park and Phoenix Park before crossing to Volume One. Verified against real
-    // BRouter trekking geometry - every waypoint snaps onto its intended way.
+    // BRouter geometry (the default 'mtb' profile) - every waypoint snaps onto
+    // its intended way, and the routed line still stays off the sac_scale=hiking
+    // western half.
     name: 'Putnam Trail Loop',
     description:
       'Through UW-Eau Claire campus to the rideable eastern Putnam Trail, out its full length to the Third Ward, then back up the Chippewa River State Trail. Skips the rugged hiking half of the trail west of campus.',
@@ -161,6 +163,14 @@ export const SIGHTSEEING_ROUTES = [
     // south-bank cycleway to the S Bridge, across it (south->north), and home
     // on the Old Abe State Trail. Every bridge is crossed exactly once.
     name: 'Bridges of Eau Claire Loop',
+    // Pinned to 'trekking' while the rest of the app routes with 'mtb'. This
+    // loop's ordering and its 21 bridge-end waypoints were tuned leg-by-leg
+    // against trekking geometry to get a true Eulerian circuit - ten bridges,
+    // each crossed exactly once, no double-backs. Re-routing it with mtb
+    // changes the line (10.75 km -> 11.28 km) because mtb weights paths
+    // differently, so the profile is fixed here to keep the verified circuit
+    // intact.
+    routingProfile: 'trekking',
     description:
       'An homage to the Seven Bridges of Konigsberg: a single clean loop over ten downtown river crossings, each ridden exactly once. Skips the traffic of the Madison Street bridge and trades Farwell Street for the S Bridge, the wooden bike-and-foot bridge a quarter mile up the Eau Claire River.',
     stops: [
@@ -211,7 +221,8 @@ export const SIGHTSEEING_ROUTES = [
     // first, then the tour drops to Lower Campus and rides the whole eastern
     // trail - west terminus, south bend, east terminus on Putnam Drive in the
     // Third Ward - before the short hop home. routePoints force the full
-    // traversal; verified against real BRouter trekking geometry.
+    // traversal; verified against real BRouter geometry (the default 'mtb'
+    // profile), which likewise stays off the hiking half.
     name: 'Grand Tour',
     description:
       'The full sightseeing circuit: Cameron Park, Halfmoon Beach, Carson Park, Owen Park, Randall Park, and the length of the eastern Putnam Trail out to the Third Ward.',

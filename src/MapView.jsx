@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { fetchRoute } from './routing'
+import { fetchRoute, DEFAULT_PROFILE } from './routing'
 import { HOME_BASE, SIGHTSEEING_ROUTES } from './presets'
+import { fetchNogoZones, zonesToGeoJSON } from './nogoZones'
 import PreferencesQuiz from './PreferencesQuiz'
 
 // Eau Claire, WI
@@ -31,6 +32,8 @@ const OSM_RASTER_STYLE = {
 const TRAILS_SOURCE_ID = 'trails'
 const TRAILS_DATA_URL = '/data/trails.geojson'
 
+const NOGO_SOURCE_ID = 'nogo-zones'
+
 const ROUTE_SOURCE_ID = 'route'
 const EMPTY_FEATURE_COLLECTION = { type: 'FeatureCollection', features: [] }
 
@@ -48,6 +51,16 @@ function MapView() {
   // is told to fully traverse each bridge instead of merely passing near it.
   // Null means "derive route points from waypoints", the common case.
   const [routeOverride, setRouteOverride] = useState(null)
+  // Presets normally route with DEFAULT_PROFILE; one (the bridges loop) pins
+  // itself to the profile its geometry was verified against.
+  const [routeProfile, setRouteProfile] = useState(DEFAULT_PROFILE)
+  // Circular areas riders are never routed through (busy intersections), read
+  // from public/data/nogo-zones.csv at startup.
+  const [nogoZones, setNogoZones] = useState([])
+  // 'loading' until the CSV resolves, so a route is never drawn before its
+  // no-go zones are known; 'error' surfaces a warning instead of silently
+  // routing as though there were nothing to avoid.
+  const [nogoStatus, setNogoStatus] = useState('loading')
   const [routeStats, setRouteStats] = useState(null)
   const [routeError, setRouteError] = useState(null)
   const [routeLoading, setRouteLoading] = useState(false)
@@ -136,6 +149,35 @@ function MapView() {
         },
       })
 
+      // Drawn as real polygons rather than a circle layer, whose radius is in
+      // screen pixels and would not track the zone's true metre footprint
+      // across zoom levels. Added before the route so the line stays on top.
+      map.addSource(NOGO_SOURCE_ID, {
+        type: 'geojson',
+        data: EMPTY_FEATURE_COLLECTION,
+      })
+
+      map.addLayer({
+        id: 'nogo-fill',
+        type: 'fill',
+        source: NOGO_SOURCE_ID,
+        paint: {
+          'fill-color': '#dc2626',
+          'fill-opacity': 0.18,
+        },
+      })
+
+      map.addLayer({
+        id: 'nogo-outline',
+        type: 'line',
+        source: NOGO_SOURCE_ID,
+        paint: {
+          'line-color': '#dc2626',
+          'line-width': 2,
+          'line-dasharray': [2, 1.5],
+        },
+      })
+
       map.addSource(ROUTE_SOURCE_ID, {
         type: 'geojson',
         data: EMPTY_FEATURE_COLLECTION,
@@ -170,12 +212,31 @@ function MapView() {
         .addTo(map)
     })
 
+    fetchNogoZones()
+      .then((zones) => {
+        setNogoZones(zones)
+        setNogoStatus('ready')
+      })
+      .catch((error) => {
+        console.error(error)
+        setNogoStatus('error')
+      })
+
     map.on('click', (e) => {
       const { lng, lat } = e.lngLat
       setWaypoints((prev) => [...prev, { name: null, coords: [lng, lat] }])
       setRouteOverride(null)
     })
   }, [])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || nogoZones.length === 0) return
+
+    const apply = () => map.getSource(NOGO_SOURCE_ID)?.setData(zonesToGeoJSON(nogoZones))
+    if (map.isStyleLoaded() && map.getSource(NOGO_SOURCE_ID)) apply()
+    else map.once('idle', apply)
+  }, [nogoZones])
 
   useEffect(() => {
     const map = mapRef.current
@@ -199,6 +260,10 @@ function MapView() {
       return
     }
 
+    // Wait for the zone list before routing: routing on an empty list would
+    // briefly draw a line straight through a no-go zone.
+    if (nogoStatus === 'loading') return
+
     let cancelled = false
     setRouteLoading(true)
     setRouteError(null)
@@ -206,7 +271,7 @@ function MapView() {
     const middlePoints = routeOverride ?? waypoints.map((stop) => stop.coords)
     const routePoints = [HOME_BASE.coords, ...middlePoints, HOME_BASE.coords]
 
-    fetchRoute(routePoints)
+    fetchRoute(routePoints, routeProfile, nogoZones)
       .then(({ geojson, distanceMeters, durationSeconds }) => {
         if (cancelled) return
         routeSource?.setData(geojson)
@@ -224,7 +289,7 @@ function MapView() {
     return () => {
       cancelled = true
     }
-  }, [waypoints, routeOverride])
+  }, [waypoints, routeOverride, routeProfile, nogoZones, nogoStatus])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -233,14 +298,17 @@ function MapView() {
         waypoints={waypoints}
         loading={routeLoading}
         error={routeError}
+        nogoWarning={nogoStatus === 'error' ? 'No-go zones failed to load - routes may pass through them.' : null}
         stats={routeStats}
         onClear={() => {
           setWaypoints([])
           setRouteOverride(null)
+          setRouteProfile(DEFAULT_PROFILE)
         }}
         onSelectPreset={(route) => {
           setWaypoints(route.stops)
           setRouteOverride(route.routePoints ?? null)
+          setRouteProfile(route.routingProfile ?? DEFAULT_PROFILE)
         }}
         onRetakeQuiz={() => setShowQuiz(true)}
       />
@@ -250,6 +318,7 @@ function MapView() {
           onComplete={(route) => {
             setWaypoints(route.stops)
             setRouteOverride(route.routePoints ?? null)
+            setRouteProfile(route.routingProfile ?? DEFAULT_PROFILE)
             setShowQuiz(false)
           }}
           onSkip={() => setShowQuiz(false)}
@@ -259,7 +328,7 @@ function MapView() {
   )
 }
 
-function RouteInfo({ waypoints, loading, error, stats, onClear, onSelectPreset, onRetakeQuiz }) {
+function RouteInfo({ waypoints, loading, error, nogoWarning, stats, onClear, onSelectPreset, onRetakeQuiz }) {
   return (
     <div
       style={{
@@ -282,6 +351,7 @@ function RouteInfo({ waypoints, loading, error, stats, onClear, onSelectPreset, 
       )}
       {loading && <div>Calculating route…</div>}
       {error && <div style={{ color: '#b91c1c' }}>Couldn't find a route: {error}</div>}
+      {nogoWarning && <div style={{ color: '#b45309' }}>{nogoWarning}</div>}
       {stats && !loading && !error && (
         <div>
           {(stats.distanceMeters / 1609.34).toFixed(1)} mi &middot; {Math.round(stats.durationSeconds / 60)} min loop
@@ -318,6 +388,7 @@ function Legend() {
     { label: 'Trail / off-road path', color: '#1a8a3d', dashed: false },
     { label: 'On-road bike lane', color: '#1d6fd6', dashed: false },
     { label: 'Shared lane / advisory', color: '#d97706', dashed: true },
+    { label: 'No-go zone (routed around)', color: '#dc2626', dashed: true },
   ]
 
   return (
