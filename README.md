@@ -64,6 +64,27 @@ the map as real polygons rather than a MapLibre circle layer, whose radius is
 in screen pixels and would not track the zone's true footprint across zoom
 levels.
 
+## Deployment
+
+The site is published to GitHub Pages at
+<https://izak-carney.github.io/cycling-wayfinding-app/> by
+`.github/workflows/deploy.yml`, which builds and deploys on every push to
+`main`. Pages is configured with **GitHub Actions** as its source, not
+"deploy from a branch" - pointing Pages at the repo root serves the unbuilt
+`index.html`, whose `/src/main.jsx` script tag the browser cannot execute, and
+the page renders blank.
+
+Because this is a *project* page served from a `/cycling-wayfinding-app/`
+subpath rather than a domain root, two things have to respect that prefix:
+
+- `vite.config.js` sets `base` to the repo name for production builds (dev
+  stays on `/`).
+- Anything fetched from `public/` uses `import.meta.env.BASE_URL` rather than a
+  hardcoded `/data/...` path, which would 404 under the subpath.
+
+If the repo is ever renamed, `GITHUB_PAGES_BASE` in `vite.config.js` has to
+change with it.
+
 ## Map data
 
 The base map is OpenStreetMap raster tiles via MapLibre GL. The cycling

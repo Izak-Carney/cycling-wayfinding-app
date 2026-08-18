@@ -1,7 +1,7 @@
 // No-go zones are circular areas riders should never be routed through -
 // busy intersections and the like. They live in a CSV rather than in code so
 // the list can be edited without a rebuild.
-export const NOGO_ZONES_URL = '/data/nogo-zones.csv'
+export const NOGO_ZONES_URL = `${import.meta.env.BASE_URL}data/nogo-zones.csv`
 
 // Rows are `latitude,longitude,radius_m`. Blank lines, `#` comments, and a
 // leading header row are all skipped, so the file stays hand-editable.
